@@ -352,6 +352,24 @@ body {
   white-space: nowrap;
 }
 
+.event-remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 2px;
+  line-height: 1;
+  border-radius: 3px;
+  opacity: 0.5;
+  transition: opacity 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.event-remove-btn:hover {
+  opacity: 1;
+  color: var(--accent-orange);
+}
+
 .add-event {
   display: flex;
   gap: 6px;

@@ -19,7 +19,17 @@ const SPORTS = {
     stats: ["PTS","REB","AST","STL","BLK","TO","FG%"],
     statMax: {PTS:30,REB:15,AST:15,STL:5,BLK:5,TO:8,"FG%":100},
     statColors: {PTS:"#378ADD",REB:"#1D9E75",AST:"#D85A30",STL:"#639922",BLK:"#B7003D",TO:"#BA7517","FG%":"#533AB7"},
-    events: ["Goal","3-Pointer","Free Throw","Foul","Timeout","Sub","Rebound","Assist","Block","Steal"]
+    events: ["Goal","3-Pointer","Free Throw","Foul","Timeout","Sub","Rebound","Assist","Block","Steal"],
+    eventEffects: {
+      "Goal":       { scoreDelta: 2, stats: { PTS: 2 } },
+      "3-Pointer":  { scoreDelta: 3, stats: { PTS: 3 } },
+      "Free Throw": { scoreDelta: 1, stats: { PTS: 1 } },
+      "Rebound":    { stats: { REB: 1 } },
+      "Assist":     { stats: { AST: 1 } },
+      "Block":      { stats: { BLK: 1 } },
+      "Steal":      { stats: { STL: 1 } },
+      "Foul":       { stats: { TO: 1 } }
+    }
   },
   tennis: {
     label: "Tennis",
@@ -34,7 +44,16 @@ const SPORTS = {
     stats: ["Aces","Dbl Faults","1st Srv%","Winners","Unforced Err","Break Pts","Net Points"],
     statMax: {Aces:20,"Dbl Faults":10,"1st Srv%":100,Winners:40,"Unforced Err":30,"Break Pts":10,"Net Points":20},
     statColors: {Aces:"#378ADD","Dbl Faults":"#D85A30","1st Srv%":"#1D9E75",Winners:"#639922","Unforced Err":"#BA7517","Break Pts":"#533AB7","Net Points":"#1D9E75"},
-    events: ["Ace","Double Fault","Winner","Unforced Error","Break Point","Game","Set","Let"]
+    events: ["Ace","Double Fault","Winner","Unforced Error","Break Point","Game","Set","Let"],
+    eventEffects: {
+      "Ace":            { stats: { Aces: 1 } },
+      "Double Fault":   { stats: { "Dbl Faults": 1 } },
+      "Winner":         { stats: { Winners: 1 } },
+      "Unforced Error": { stats: { "Unforced Err": 1 } },
+      "Break Point":    { stats: { "Break Pts": 1 } },
+      "Game":           { scoreDelta: 1 },
+      "Set":            { scoreDelta: 1 }
+    }
   },
   pingpong: {
     label: "Ping Pong",
@@ -47,7 +66,15 @@ const SPORTS = {
     stats: ["Pts Won","Smashes","Spin Pts","Rallies","Serve Err","Edges","Net Clips"],
     statMax:{"Pts Won":21,Smashes:15,"Spin Pts":10,Rallies:20,"Serve Err":8,Edges:5,"Net Clips":5},
     statColors:{"Pts Won":"#378ADD",Smashes:"#D85A30","Spin Pts":"#533AB7",Rallies:"#1D9E75","Serve Err":"#BA7517",Edges:"#639922","Net Clips":"#B7003D"},
-    events: ["Point","Smash","Serve Error","Let","Edge Ball","Net Ball","Game Point"]
+    events: ["Point","Smash","Serve Error","Let","Edge Ball","Net Ball","Game Point"],
+    eventEffects: {
+      "Point":      { scoreDelta: 1, stats: { "Pts Won": 1 } },
+      "Smash":      { scoreDelta: 1, stats: { Smashes: 1, "Pts Won": 1 } },
+      "Serve Error":{ stats: { "Serve Err": 1 } },
+      "Edge Ball":  { scoreDelta: 1, stats: { Edges: 1, "Pts Won": 1 } },
+      "Net Ball":   { stats: { "Net Clips": 1 } },
+      "Game Point": { scoreDelta: 1, stats: { "Pts Won": 1 } }
+    }
   },
   hockey: {
     label: "Ice Hockey",
@@ -70,7 +97,16 @@ const SPORTS = {
     stats: ["Goals","Assists","Shots","Saves","PIM","Hits","FO%"],
     statMax:{Goals:5,Assists:5,Shots:35,Saves:35,PIM:10,Hits:20,"FO%":100},
     statColors:{Goals:"#378ADD",Assists:"#1D9E75",Shots:"#D85A30",Saves:"#639922",PIM:"#D85A30",Hits:"#533AB7","FO%":"#BA7517"},
-    events: ["Goal","Penalty","Save","Shot on Goal","Icing","Offside","Power Play","Power Play Goal","Penalty Shot","Fight"]
+    events: ["Goal","Penalty","Save","Shot on Goal","Icing","Offside","Power Play","Power Play Goal","Penalty Shot","Fight"],
+    eventEffects: {
+      "Goal":            { scoreDelta: 1, stats: { Goals: 1 } },
+      "Power Play Goal": { scoreDelta: 1, stats: { Goals: 1 } },
+      "Penalty":         { stats: { PIM: 2 } },
+      "Save":            { stats: { Saves: 1 } },
+      "Shot on Goal":    { stats: { Shots: 1 } },
+      "Penalty Shot":    { stats: { Shots: 1 } },
+      "Fight":           { stats: { PIM: 5 } }
+    }
   }
 };
 
@@ -432,6 +468,17 @@ function setStat(key, val, inputEl) {
 }
 
 // ── Events ────────────────────────────────────────────────────────────────
+function applyEventEffects(effects) {
+  effects.forEach(e => {
+    if (e.kind === "score") {
+      state.score[e.teamIdx] = Math.max(0, state.score[e.teamIdx] + e.delta);
+    } else if (e.kind === "stat") {
+      const statsObj = e.statTeam === "A" ? state.statsA : state.statsB;
+      statsObj[e.key] = Math.max(0, (statsObj[e.key] || 0) + e.delta);
+    }
+  });
+}
+
 function renderEvents() {
   const el = document.getElementById("panel-events");
   if (!el) return;
@@ -439,14 +486,16 @@ function renderEvents() {
   const evOpts = s.events.map(e => `<option>${e}</option>`).join("");
 
   const evList = state.events.length
-    ? [...state.events].reverse().map(ev =>
-        `<div class="event-item">
+    ? [...state.events].reverse().map((ev, displayIdx) => {
+        const realIdx = state.events.length - 1 - displayIdx;
+        return `<div class="event-item">
           <span class="event-time">${ev.time}</span>
           <span class="event-dot" style="background:${ev.color}"></span>
           <span>${ev.type}</span>
           <span class="event-team">${ev.team}</span>
-        </div>`
-      ).join("")
+          <button class="event-remove-btn" onclick="removeEvent(${realIdx})" title="Remove event">✕</button>
+        </div>`;
+      }).join("")
     : `<div style="font-size:12px;color:var(--text-secondary);padding:6px 0">No events logged yet.</div>`;
 
   el.innerHTML = `
@@ -467,12 +516,50 @@ function addEvent() {
   const type = document.getElementById("evType")?.value;
   const team = document.getElementById("evTeam")?.value;
   if (!type) return;
-  const color = team === (state.teamNames[0] || "Home") ? TEAM_A_COLOR : TEAM_B_COLOR;
-  logEventInternal(type, color, team);
+  const isTeamA = team === (state.teamNames[0] || "Home");
+  const color = isTeamA ? TEAM_A_COLOR : TEAM_B_COLOR;
+  const statTeam = isTeamA ? "A" : "B";
+  const teamIdx = isTeamA ? 0 : 1;
+
+  // Build and apply effects from sport's eventEffects mapping
+  const s = SPORTS[state.sport];
+  const effectDef = s.eventEffects?.[type];
+  const appliedEffects = [];
+  if (effectDef) {
+    if (effectDef.scoreDelta) {
+      appliedEffects.push({ kind: "score", teamIdx, delta: effectDef.scoreDelta });
+    }
+    if (effectDef.stats) {
+      Object.entries(effectDef.stats).forEach(([key, delta]) => {
+        appliedEffects.push({ kind: "stat", statTeam, key, delta });
+      });
+    }
+  }
+  applyEventEffects(appliedEffects);
+
+  logEventInternal(type, color, team, appliedEffects);
+
+  const hasScore = appliedEffects.some(e => e.kind === "score");
+  const hasStat = appliedEffects.some(e => e.kind === "stat");
   renderEvents();
+  if (hasScore) renderScoreboard();
+  if (hasStat) renderStats();
 }
 
-function logEventInternal(type, color, team) {
+function removeEvent(idx) {
+  const ev = state.events[idx];
+  if (!ev) return;
+  // Reverse the effects that were applied when this event was logged
+  if (ev.effects && ev.effects.length) {
+    applyEventEffects(ev.effects.map(e => ({ ...e, delta: -e.delta })));
+  }
+  state.events.splice(idx, 1);
+  renderEvents();
+  renderScoreboard();
+  renderStats();
+}
+
+function logEventInternal(type, color, team, effects = []) {
   const s = SPORTS[state.sport];
   let timeStr;
   if (s.periodTime > 0) {
@@ -481,7 +568,7 @@ function logEventInternal(type, color, team) {
   } else {
     timeStr = s.periods[state.period];
   }
-  state.events.push({ type, color, team: team || "", time: timeStr });
+  state.events.push({ type, color, team: team || "", time: timeStr, effects });
   if (state.events.length > 100) state.events.shift();
 }
 
