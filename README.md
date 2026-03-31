@@ -18,13 +18,6 @@ A lightweight, zero-dependency sports stat tracker for **Basketball**, **Tennis*
 4. Drag players on the court to set up your formation
 5. Log events and update stats as the game progresses
 
-## Hosting on GitHub Pages
-
-1. Push this repo to GitHub
-2. Go to **Settings → Pages**
-3. Set source to `main` branch, `/ (root)`
-4. Your tracker will be live at `https://<username>.github.io/<repo-name>/`
-
 ## File Structure
 
 ```
